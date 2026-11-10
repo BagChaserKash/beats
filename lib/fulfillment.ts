@@ -125,7 +125,7 @@ export async function fulfillOrder(input: {
     throw err;
   }
 
-  const orderPage = `${base}/beats/r/${await ensureAccessCode(db, order.id)}`;
+  const orderPage = `${base}/beats/o/${await ensureAccessCode(db, order.id)}`;
 
   try {
     await sendEmail({
@@ -248,7 +248,7 @@ export async function resendReceipt(orderId: string): Promise<{ ok: true } | { e
 
   let orderPage: string;
   try {
-    orderPage = `${base}/beats/r/${await ensureAccessCode(db, order.id)}`;
+    orderPage = `${base}/beats/o/${await ensureAccessCode(db, order.id)}`;
   } catch {
     return { error: 'Couldn’t create a receipt link.' };
   }

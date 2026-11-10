@@ -270,3 +270,6 @@ confirm before any destructive action or any change outside this repo.
   are attached as .txt. DMARC `v=DMARC1; p=none;` added in Cloudflare. Replies go
   to `EMAIL_REPLY_TO` or `ADMIN_NOTIFY_EMAIL`. Admin tools: Settings → Email
   delivery test (plain/sample), Orders → Resend receipt.
+- Receipt link changed to `/beats/o/<code>`: a PAGE that renders the order directly
+  (shared `app/order/OrderView.tsx`), because iCloud also rejected the redirecting
+  `/beats/r/<code>` link. `/beats/r/` still works for older emails.
