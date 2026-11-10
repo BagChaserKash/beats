@@ -273,3 +273,9 @@ confirm before any destructive action or any change outside this repo.
 - Receipt link changed to `/beats/o/<code>`: a PAGE that renders the order directly
   (shared `app/order/OrderView.tsx`), because iCloud also rejected the redirecting
   `/beats/r/<code>` link. `/beats/r/` still works for older emails.
+- License templates v2 (migration 0005): adds payment condition, distributor + Content ID opt-out, no standalone instrumental release, AI-training ban, artist warranties/indemnity, as-is limit, survival, Richland County venue, assignment, notices, severability. Still drafts for attorney review.
+- YouTube kit on the admin beat page (migration 0006 adds `youtube_bg` file kind):
+  background upload, in-browser 1080p video maker (canvas + tagged preview via
+  MediaRecorder, real-time render, MP4 when supported else WebM, optional title
+  overlay), tagged MP3 download, and generated title/description/tags
+  (`lib/youtube.ts`; artist names come from tags ending in " type beat").

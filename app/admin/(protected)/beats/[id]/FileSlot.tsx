@@ -69,7 +69,7 @@ export default function FileSlot(props: Props) {
 
   return (
     <div className={styles.fileSlot}>
-      {props.kind === 'artwork' && props.previewUrl && (
+      {(props.kind === 'artwork' || props.kind === 'youtube_bg') && props.previewUrl && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={props.previewUrl} alt="Current cover artwork" className={styles.artThumb} />
       )}

@@ -466,3 +466,31 @@
   margin-top: 10px;
   height: 36px;
 }
+
+/* YouTube kit */
+.copyField { margin-top: 18px; }
+
+.copyHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.copyHead .label { margin-bottom: 0; }
+
+.copyArea {
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.inlineCheck {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 14px;
+  margin-top: 10px;
+}
+
+.inlineCheck input { accent-color: var(--gold); width: 16px; height: 16px; }

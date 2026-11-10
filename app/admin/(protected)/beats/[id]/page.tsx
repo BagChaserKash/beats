@@ -6,6 +6,9 @@ import { FILE_SLOTS, formatDuration, money, type FileKind } from '@/lib/beats';
 import BeatFields from '../BeatFields';
 import FileSlot from './FileSlot';
 import PreviewMaker from './PreviewMaker';
+import CopyField from './CopyField';
+import YouTubeVideoMaker from './YouTubeVideoMaker';
+import { buildYouTubeKit } from '@/lib/youtube';
 import { updateBeat, updateLicenses, setBeatStatus } from '../actions';
 import styles from '../../../admin.module.css';
 
@@ -69,6 +72,37 @@ export default async function EditBeatPage({
     : null;
   const hasMaster = fileByKind.has('master_mp3') || fileByKind.has('master_wav');
 
+  const ytBg = fileByKind.get('youtube_bg');
+  const ytBgUrl = ytBg ? await signedGetUrl(ytBg.bucket, ytBg.object_key, 3600).catch(() => null) : null;
+  const taggedDownloadUrl = preview
+    ? await signedGetUrl(
+        preview.bucket,
+        preview.object_key,
+        3600,
+        `${String(beat.title).replace(/[^a-zA-Z0-9 ._()-]+/g, '').trim() || 'Beat'} (Tagged) - BAGCHASERKASH.mp3`
+      ).catch(() => null)
+    : null;
+
+  const kit = buildYouTubeKit({
+    title: beat.title,
+    slug: beat.slug,
+    bpm: beat.bpm,
+    musicalKey: beat.musical_key,
+    genre: beat.genre,
+    mood: beat.mood,
+    tags: tags ? tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
+    prices: tiers
+      .filter((t) => licenseByTier.get(t.id)?.available ?? true)
+      .map((t) => {
+        const l = licenseByTier.get(t.id);
+        return {
+          name: t.name,
+          priceCents: t.price_visible ? l?.price_cents_override ?? t.default_price_cents : null,
+        };
+      }),
+  });
+  const videoMeta = [beat.bpm ? `${beat.bpm} BPM` : null, beat.musical_key, 'Prod. BAGCHASERKASH'].filter(Boolean).join('  ·  ');
+
   const isLive = beat.status === 'published';
   const isSold = beat.status === 'exclusive_sold';
 
@@ -125,6 +159,38 @@ export default async function EditBeatPage({
           );
         })}
         <PreviewMaker beatId={id} hasMaster={hasMaster} previewUrl={previewUrl} />
+      </section>
+
+      <section className={styles.panel}>
+        <h2 className={styles.h2}>YouTube</h2>
+        <p className={styles.help}>
+          Upload a background picture, make the video, then copy the title, description, and tags into YouTube.
+          {!isLive && ' Publish the beat first so the store link in the description works.'}
+        </p>
+        <FileSlot
+          beatId={id}
+          kind="youtube_bg"
+          label="Background picture"
+          hint="JPG, PNG, or WebP. Landscape, ideally 1920×1080. If you skip this, your cover art is used."
+          accept=".jpg,.jpeg,.png,.webp"
+          currentName={ytBg ? ytBg.object_key.split('/').pop()!.replace(/^\d+-/, '') : null}
+          currentSize={ytBg?.size_bytes ?? null}
+          previewUrl={ytBgUrl}
+        />
+        <YouTubeVideoMaker
+          title={beat.title}
+          meta={videoMeta}
+          backgroundUrl={ytBgUrl ?? artUrl}
+          previewUrl={previewUrl}
+        />
+        {taggedDownloadUrl && (
+          <p className={styles.help} style={{ marginTop: 14 }}>
+            Prefer to edit the video yourself? <a href={taggedDownloadUrl}>Download the tagged MP3</a>.
+          </p>
+        )}
+        <CopyField label="YouTube title" value={kit.title} />
+        <CopyField label="YouTube description" value={kit.description} multiline />
+        <CopyField label="YouTube tags" value={kit.tags} />
       </section>
 
       <section className={styles.panel}>

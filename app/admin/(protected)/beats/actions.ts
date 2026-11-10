@@ -203,11 +203,12 @@ const LIMITS: Record<FileKind, number> = {
   master_wav: 600 * 1024 * 1024,
   trackout_zip: 5 * 1000 * 1024 * 1024,
   preview_mp3: 40 * 1024 * 1024,
+  youtube_bg: 25 * 1024 * 1024,
 };
 
 function contentTypeFor(kind: FileKind, fileName: string): string | null {
   const ext = fileName.toLowerCase().split('.').pop() ?? '';
-  if (kind === 'artwork') {
+  if (kind === 'artwork' || kind === 'youtube_bg') {
     if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
     if (ext === 'png') return 'image/png';
     if (ext === 'webp') return 'image/webp';
@@ -221,7 +222,7 @@ function contentTypeFor(kind: FileKind, fileName: string): string | null {
 }
 
 function bucketFor(kind: FileKind) {
-  return kind === 'artwork' || kind === 'preview_mp3' ? previewsBucket() : mastersBucket();
+  return kind === 'artwork' || kind === 'preview_mp3' || kind === 'youtube_bg' ? previewsBucket() : mastersBucket();
 }
 
 export async function getUploadUrl(
