@@ -232,3 +232,14 @@ confirm before any destructive action or any change outside this repo.
   upload; "Remake" button on the beat page. Producer tag and preview options live
   in `settings` (`producer_tag`, `preview_options`) via /admin/settings. Publishing
   now requires a preview.
+- Phase 2c: public storefront. `app/page.tsx` = store home (search, genre/mood/key,
+  BPM range, max price, tag, sort; filtering done server-side in JS over the full
+  live catalog), `app/[slug]/page.tsx` = beat page (metadata, JSON-LD
+  MusicRecording with visible prices only, licenses with hidden Exclusive price,
+  buy buttons disabled "opens soon"), `app/media/[beatId]/[kind]` = stable URLs that
+  302 to signed R2 links for artwork/preview of LIVE beats only, `app/sitemap.ts`.
+  Persistent player (`lib/player.tsx`, provider in root layout): queue, next/prev,
+  seek, volume, auto-advance, waveform seek, favorites and recently played in
+  localStorage. `lib/store.ts` is the only catalog reader and never selects hidden
+  prices or floor prices.
+- NEXT: cart + Stripe Checkout (test mode, card + crypto) + webhook + delivery.

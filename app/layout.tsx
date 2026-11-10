@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import { PlayerProvider } from '@/lib/player';
 
 export const metadata: Metadata = {
   title: 'Beats | BAGCHASERKASH',
@@ -21,7 +22,9 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <PlayerProvider>{children}</PlayerProvider>
+      </body>
     </html>
   );
 }
