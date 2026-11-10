@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { signedGetUrl } from '@/lib/r2';
 import TagUploader from './TagUploader';
-import { savePreviewOptions } from './actions';
+import { savePreviewOptions, sendTestEmailAction } from './actions';
 import styles from '../../admin.module.css';
 
 export const dynamic = 'force-dynamic';
@@ -12,9 +12,9 @@ type Options = { interval_seconds: number; tag_gain: number; first_tag_at: numbe
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ saved?: string }>;
+  searchParams: Promise<{ saved?: string; test?: string }>;
 }) {
-  const { saved } = await searchParams;
+  const { saved, test } = await searchParams;
   const { data } = await createAdminClient()
     .from('settings')
     .select('key, value')
@@ -61,6 +61,31 @@ export default async function SettingsPage({
             </label>
           </div>
           <button className={styles.primary} type="submit">Save preview settings</button>
+        </form>
+      </section>
+
+      <section className={styles.panel}>
+        <h2 className={styles.h2}>Email delivery test</h2>
+        <p className={styles.help}>
+          Send a test to check whether an inbox (like iCloud) accepts your emails. Then check the result in Resend.
+        </p>
+        {test === 'plain' && <p className={styles.savedBanner}>Plain-text test sent. Check Resend to see if it was delivered or bounced.</p>}
+        {test === 'sample' && <p className={styles.savedBanner}>Sample receipt sent. Check Resend to see if it was delivered or bounced.</p>}
+        {test === 'failed' && <p className={styles.errorBanner}>Resend refused to send it. Check your Resend dashboard for details.</p>}
+        {test === 'bad-email' && <p className={styles.errorBanner}>Enter a valid email address.</p>}
+        <form action={sendTestEmailAction}>
+          <label className={styles.field}>
+            <span className={styles.label}>Send to</span>
+            <input className={styles.input} name="to" type="email" required placeholder="someone@icloud.com" />
+          </label>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <button className={styles.primary} type="submit" name="mode" value="plain">
+              Send plain-text test
+            </button>
+            <button className={styles.primary} type="submit" name="mode" value="sample">
+              Send sample receipt
+            </button>
+          </div>
         </form>
       </section>
     </main>

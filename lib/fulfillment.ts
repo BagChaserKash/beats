@@ -122,12 +122,7 @@ export async function fulfillOrder(input: {
       subject: `Your BAGCHASERKASH beats: order ${order.order_number}`,
       html: buyerHtml(order.order_number, order.total_cents, emailItems, orderPage, hours),
       text: buyerText(order.order_number, order.total_cents, emailItems, orderPage, hours),
-      attachments: emailItems
-        .filter((i) => i.agreement)
-        .map((i) => ({
-          filename: `License - ${i.title.replace(/[^a-zA-Z0-9 ._()-]+/g, '').trim() || 'Beat'} - ${i.tier} - ${order.order_number}.txt`,
-          content: Buffer.from(i.agreement, 'utf8').toString('base64'),
-        })),
+      attachments: agreementAttachments(emailItems, order.order_number),
     });
     await db.from('orders').update({ status: 'fulfilled' }).eq('id', order.id).eq('status', 'paid');
   } catch (err) {
@@ -199,6 +194,111 @@ export async function markDisputed(paymentIntentId: string) {
 export async function markCanceled(orderId: string) {
   const db = createAdminClient();
   await db.from('orders').update({ status: 'canceled' }).eq('id', orderId).eq('status', 'pending');
+}
+
+// ---------- resending a receipt ----------
+
+// Issues fresh download links for an existing paid order and emails the receipt again.
+export async function resendReceipt(orderId: string): Promise<{ ok: true } | { error: string }> {
+  const db = createAdminClient();
+  const { data: order } = await db
+    .from('orders')
+    .select('id, order_number, email, total_cents, status, stripe_session_id')
+    .eq('id', orderId)
+    .maybeSingle();
+  if (!order) return { error: 'Order not found.' };
+  if (!['paid', 'fulfilled'].includes(order.status)) return { error: 'Only paid orders can be resent.' };
+
+  const { data: itemData } = await db
+    .from('order_items')
+    .select('id, price_cents, agreement_snapshot, beats ( title ), license_tiers ( name ), entitlements ( id, file_kind, revoked )')
+    .eq('order_id', order.id);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const items = (itemData ?? []) as any[];
+
+  const hours = Number(await setting(db, 'download_link_hours', 72)) || 72;
+  const maxUses = Number(await setting(db, 'download_max_uses', 5)) || 5;
+  const expiresAt = new Date(Date.now() + hours * 3600 * 1000).toISOString();
+  const base = siteUrl();
+
+  const emailItems: EmailItem[] = [];
+  for (const item of items) {
+    const links: { label: string; url: string }[] = [];
+    for (const ent of (item.entitlements ?? []) as { id: string; file_kind: string; revoked: boolean }[]) {
+      if (ent.revoked) continue;
+      const raw = randomBytes(32).toString('base64url');
+      const { error } = await db.from('download_tokens').insert({
+        token_hash: hashToken(raw),
+        entitlement_id: ent.id,
+        expires_at: expiresAt,
+        max_uses: maxUses,
+      });
+      if (error) return { error: 'Couldn’t create new download links.' };
+      links.push({ label: FILE_LABELS[ent.file_kind] ?? ent.file_kind, url: `${base}/beats/download/${raw}` });
+    }
+    const beat = Array.isArray(item.beats) ? item.beats[0] : item.beats;
+    const tier = Array.isArray(item.license_tiers) ? item.license_tiers[0] : item.license_tiers;
+    emailItems.push({
+      title: beat?.title ?? 'Beat',
+      tier: tier?.name ?? 'License',
+      price: item.price_cents,
+      links,
+      agreement: item.agreement_snapshot ?? '',
+    });
+  }
+
+  const orderPage = `${base}/beats/order/${order.id}?session_id=${encodeURIComponent(order.stripe_session_id ?? '')}`;
+  try {
+    await sendEmail({
+      to: order.email,
+      subject: `Your BAGCHASERKASH beats: order ${order.order_number}`,
+      html: buyerHtml(order.order_number, order.total_cents, emailItems, orderPage, hours),
+      text: buyerText(order.order_number, order.total_cents, emailItems, orderPage, hours),
+      attachments: agreementAttachments(emailItems, order.order_number),
+    });
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Email failed.' };
+  }
+  await db.from('orders').update({ status: 'fulfilled' }).eq('id', order.id).eq('status', 'paid');
+  return { ok: true };
+}
+
+function agreementAttachments(items: EmailItem[], orderNumber: string) {
+  return items
+    .filter((i) => i.agreement)
+    .map((i) => ({
+      filename: `License - ${i.title.replace(/[^a-zA-Z0-9 ._()-]+/g, '').trim() || 'Beat'} - ${i.tier} - ${orderNumber}.txt`,
+      content: Buffer.from(i.agreement, 'utf8').toString('base64'),
+    }));
+}
+
+// ---------- test emails (admin tool) ----------
+
+export async function sendTestEmail(to: string, mode: 'plain' | 'sample') {
+  if (mode === 'plain') {
+    await sendEmail({
+      to,
+      subject: 'Test from BAGCHASERKASH',
+      text: 'This is a plain-text test message from BAGCHASERKASH. No action is needed.',
+    });
+    return;
+  }
+  const sample: EmailItem[] = [
+    {
+      title: 'Sample Beat',
+      tier: 'MP3 Lease',
+      price: 5000,
+      links: [{ label: 'Untagged MP3', url: `${siteUrl()}/beats` }],
+      agreement: 'SAMPLE LICENSE AGREEMENT\n\nThis is a sample attachment for testing delivery.',
+    },
+  ];
+  await sendEmail({
+    to,
+    subject: 'Your BAGCHASERKASH beats: order TEST',
+    html: buyerHtml('TEST', 5000, sample, `${siteUrl()}/beats`, 72),
+    text: buyerText('TEST', 5000, sample, `${siteUrl()}/beats`, 72),
+    attachments: agreementAttachments(sample, 'TEST'),
+  });
 }
 
 // ---------- email bodies ----------

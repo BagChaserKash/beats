@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { requireAdmin } from '@/lib/auth';
 import { mastersBucket, signedPutUrl, deleteObject } from '@/lib/r2';
+import { sendTestEmail } from '@/lib/fulfillment';
 
 export async function getTagUploadUrl(
   fileName: string,
@@ -59,4 +60,17 @@ export async function savePreviewOptions(formData: FormData) {
   await db.from('admin_audit_log').insert({ user_id: user.id, action: 'settings.preview_options', target: 'preview_options', data: value });
   revalidatePath('/admin', 'layout');
   redirect('/admin/settings?saved=1');
+}
+
+export async function sendTestEmailAction(formData: FormData) {
+  await requireAdmin();
+  const to = String(formData.get('to') ?? '').trim();
+  const mode = formData.get('mode') === 'sample' ? 'sample' : 'plain';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(to)) redirect('/admin/settings?test=bad-email');
+  try {
+    await sendTestEmail(to, mode);
+  } catch {
+    redirect('/admin/settings?test=failed');
+  }
+  redirect(`/admin/settings?test=${mode}`);
 }

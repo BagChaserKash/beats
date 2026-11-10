@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { money } from '@/lib/beats';
+import { resendReceiptAction } from './actions';
 import styles from '../../admin.module.css';
 
 export const dynamic = 'force-dynamic';
@@ -25,7 +26,12 @@ const LABEL: Record<string, string> = {
   canceled: 'Abandoned',
 };
 
-export default async function OrdersPage() {
+export default async function OrdersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ sent?: string; error?: string }>;
+}) {
+  const { sent, error } = await searchParams;
   const { data } = await createAdminClient()
     .from('orders')
     .select('id, order_number, email, status, total_cents, created_at, paid_at, order_items ( price_cents, beats ( title ), license_tiers ( name ) )')
@@ -39,6 +45,8 @@ export default async function OrdersPage() {
       <p className={styles.subtle}>
         Refunds are issued in your Stripe dashboard. When you refund there, the order updates here and downloads turn off automatically.
       </p>
+      {sent && <p className={styles.savedBanner}>Receipt sent again with fresh download links.</p>}
+      {error && <p className={styles.errorBanner}>Couldn’t resend: {error}</p>}
       {orders.length === 0 ? (
         <div className={styles.notice}>No orders yet.</div>
       ) : (
@@ -52,6 +60,7 @@ export default async function OrdersPage() {
                 <th>Beats</th>
                 <th>Total</th>
                 <th>Status</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -72,6 +81,14 @@ export default async function OrdersPage() {
                     <span className={`${styles.badge} ${o.status === 'fulfilled' ? styles.badge_published : ''}`}>
                       {LABEL[o.status] ?? o.status}
                     </span>
+                  </td>
+                  <td>
+                    {(o.status === 'paid' || o.status === 'fulfilled') && (
+                      <form action={resendReceiptAction}>
+                        <input type="hidden" name="order_id" value={o.id} />
+                        <button type="submit" className={styles.ghostButton}>Resend receipt</button>
+                      </form>
+                    )}
                   </td>
                 </tr>
               ))}
