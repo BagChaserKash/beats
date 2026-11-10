@@ -263,3 +263,10 @@ confirm before any destructive action or any change outside this repo.
   domain verified), optional `SITE_URL`.
 - NEXT: Resend domain verification, Stripe live activation, attorney review,
   Phase 3 (exclusive offers + verified artists).
+- Email deliverability: iCloud rejected receipts (554 5.7.1 [HM08]) because of long
+  random download-token URLs. Receipts now contain ONE short link
+  `/beats/r/<12-char access_code>` (migration 0004, `orders.access_code`) that
+  redirects to the order page; no download tokens are emailed. License agreements
+  are attached as .txt. DMARC `v=DMARC1; p=none;` added in Cloudflare. Replies go
+  to `EMAIL_REPLY_TO` or `ADMIN_NOTIFY_EMAIL`. Admin tools: Settings → Email
+  delivery test (plain/sample), Orders → Resend receipt.

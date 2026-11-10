@@ -9,6 +9,27 @@ import { formatPrice } from '@/lib/store';
 
 type Db = ReturnType<typeof createAdminClient>;
 
+const CODE_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
+
+function newAccessCode() {
+  const bytes = randomBytes(12);
+  let code = '';
+  for (const b of bytes) code += CODE_ALPHABET[b % CODE_ALPHABET.length];
+  return code;
+}
+
+// Gives the order a short code for its receipt link (keeps an existing one).
+async function ensureAccessCode(db: Db, orderId: string): Promise<string> {
+  const { data } = await db.from('orders').select('access_code').eq('id', orderId).maybeSingle();
+  if (data?.access_code) return data.access_code as string;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const code = newAccessCode();
+    const { error } = await db.from('orders').update({ access_code: code }).eq('id', orderId);
+    if (!error) return code;
+  }
+  throw new Error('Couldn’t create a receipt link.');
+}
+
 export function hashToken(raw: string) {
   return createHash('sha256').update(raw).digest('hex');
 }
@@ -71,9 +92,7 @@ export async function fulfillOrder(input: {
     items = (itemData ?? []) as unknown as ItemRow[];
     if (items.length === 0) throw new Error('Order has no items.');
 
-    hours = Number(await setting(db, 'download_link_hours', 72)) || 72;
-    const maxUses = Number(await setting(db, 'download_max_uses', 5)) || 5;
-    const expiresAt = new Date(Date.now() + hours * 3600 * 1000).toISOString();
+    hours = 30 * 24;
 
 
     for (const item of items) {
@@ -84,18 +103,10 @@ export async function fulfillOrder(input: {
         .select('id, file_kind');
       if (entError) throw new Error(`Entitlements: ${entError.message}`);
 
-      const links: { label: string; url: string }[] = [];
-      for (const ent of (ents ?? []) as { id: string; file_kind: string }[]) {
-        const raw = randomBytes(32).toString('base64url');
-        const { error: tokenError } = await db.from('download_tokens').insert({
-          token_hash: hashToken(raw),
-          entitlement_id: ent.id,
-          expires_at: expiresAt,
-          max_uses: maxUses,
-        });
-        if (tokenError) throw new Error(`Download token: ${tokenError.message}`);
-        links.push({ label: FILE_LABELS[ent.file_kind] ?? ent.file_kind, url: `${base}/beats/download/${raw}` });
-      }
+      const links = ((ents ?? []) as { id: string; file_kind: string }[]).map((ent) => ({
+        label: FILE_LABELS[ent.file_kind] ?? ent.file_kind,
+        url: '',
+      }));
 
       emailItems.push({
         title: item.beats?.title ?? 'Beat',
@@ -114,7 +125,7 @@ export async function fulfillOrder(input: {
     throw err;
   }
 
-  const orderPage = `${base}/beats/order/${order.id}?session_id=${encodeURIComponent(input.sessionId)}`;
+  const orderPage = `${base}/beats/r/${await ensureAccessCode(db, order.id)}`;
 
   try {
     await sendEmail({
@@ -216,26 +227,14 @@ export async function resendReceipt(orderId: string): Promise<{ ok: true } | { e
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const items = (itemData ?? []) as any[];
 
-  const hours = Number(await setting(db, 'download_link_hours', 72)) || 72;
-  const maxUses = Number(await setting(db, 'download_max_uses', 5)) || 5;
-  const expiresAt = new Date(Date.now() + hours * 3600 * 1000).toISOString();
+  const hours = 30 * 24;
   const base = siteUrl();
 
   const emailItems: EmailItem[] = [];
   for (const item of items) {
-    const links: { label: string; url: string }[] = [];
-    for (const ent of (item.entitlements ?? []) as { id: string; file_kind: string; revoked: boolean }[]) {
-      if (ent.revoked) continue;
-      const raw = randomBytes(32).toString('base64url');
-      const { error } = await db.from('download_tokens').insert({
-        token_hash: hashToken(raw),
-        entitlement_id: ent.id,
-        expires_at: expiresAt,
-        max_uses: maxUses,
-      });
-      if (error) return { error: 'Couldn’t create new download links.' };
-      links.push({ label: FILE_LABELS[ent.file_kind] ?? ent.file_kind, url: `${base}/beats/download/${raw}` });
-    }
+    const links = ((item.entitlements ?? []) as { id: string; file_kind: string; revoked: boolean }[])
+      .filter((ent) => !ent.revoked)
+      .map((ent) => ({ label: FILE_LABELS[ent.file_kind] ?? ent.file_kind, url: '' }));
     const beat = Array.isArray(item.beats) ? item.beats[0] : item.beats;
     const tier = Array.isArray(item.license_tiers) ? item.license_tiers[0] : item.license_tiers;
     emailItems.push({
@@ -247,7 +246,12 @@ export async function resendReceipt(orderId: string): Promise<{ ok: true } | { e
     });
   }
 
-  const orderPage = `${base}/beats/order/${order.id}?session_id=${encodeURIComponent(order.stripe_session_id ?? '')}`;
+  let orderPage: string;
+  try {
+    orderPage = `${base}/beats/r/${await ensureAccessCode(db, order.id)}`;
+  } catch {
+    return { error: 'Couldn’t create a receipt link.' };
+  }
   try {
     await sendEmail({
       to: order.email,
@@ -288,7 +292,7 @@ export async function sendTestEmail(to: string, mode: 'plain' | 'sample') {
       title: 'Sample Beat',
       tier: 'MP3 Lease',
       price: 5000,
-      links: [{ label: 'Untagged MP3', url: `${siteUrl()}/beats` }],
+      links: [{ label: 'Untagged MP3', url: '' }],
       agreement: 'SAMPLE LICENSE AGREEMENT\n\nThis is a sample attachment for testing delivery.',
     },
   ];
@@ -307,15 +311,11 @@ export async function sendTestEmail(to: string, mode: 'plain' | 'sample') {
 
 type EmailItem = { title: string; tier: string; price: number; links: { label: string; url: string }[]; agreement: string };
 
-function buyerHtml(orderNumber: string, total: number, items: EmailItem[], orderPage: string, hours: number) {
+function buyerHtml(orderNumber: string, total: number, items: EmailItem[], orderPage: string, _hours: number) {
   const rows = items
     .map(
-      (i) => `
-      <p style="margin:18px 0 6px"><strong>${escapeHtml(i.title)}</strong><br>
-      <span style="color:#555">${escapeHtml(i.tier)}, ${formatPrice(i.price)}</span></p>
-      <p style="margin:0">${i.links
-        .map((l) => `<a href="${l.url}" style="color:#8a6d1f;font-weight:bold">Download ${escapeHtml(l.label)}</a>`)
-        .join('<br>')}</p>`
+      (i) => `<p style="margin:14px 0 0"><strong>${escapeHtml(i.title)}</strong><br>
+      <span style="color:#555">${escapeHtml(i.tier)}, ${formatPrice(i.price)}. Includes: ${escapeHtml(i.links.map((l) => l.label).join(', '))}</span></p>`
     )
     .join('');
 
@@ -325,23 +325,21 @@ function buyerHtml(orderNumber: string, total: number, items: EmailItem[], order
     <p style="margin:0 0 4px">Thanks for your order.</p>
     <p style="margin:0;color:#555">Order ${escapeHtml(orderNumber)}. Total ${formatPrice(total)}.</p>
     ${rows}
-    <p style="margin:22px 0 0">Download links work for ${hours} hours. You can also download again from your <a href="${orderPage}" style="color:#8a6d1f">order page</a> for 30 days.</p>
-    <p style="margin:12px 0 0">Your license agreement for each beat is attached to this email. Please keep it for your records.</p>
+    <p style="margin:24px 0"><a href="${orderPage}" style="background:#c9a54c;color:#000;text-decoration:none;font-weight:bold;padding:12px 18px;border-radius:6px;display:inline-block">Download your files</a></p>
+    <p style="margin:0">Your downloads stay available for 30 days. Your license agreement for each beat is attached to this email. Please keep it for your records.</p>
     <p style="margin:22px 0 0;color:#777;font-size:13px">Questions? Just reply to this email.</p>
   </div></body></html>`;
 }
 
-function buyerText(orderNumber: string, total: number, items: EmailItem[], orderPage: string, hours: number) {
+function buyerText(orderNumber: string, total: number, items: EmailItem[], orderPage: string, _hours: number) {
   return [
     'Thanks for your order from BAGCHASERKASH.',
     `Order ${orderNumber}. Total ${formatPrice(total)}.`,
     '',
-    ...items.flatMap((i) => [
-      `${i.title} (${i.tier}, ${formatPrice(i.price)})`,
-      ...i.links.map((l) => `  Download ${l.label}: ${l.url}`),
-      '',
-    ]),
-    `Download links work for ${hours} hours. Order page (re-downloads for 30 days): ${orderPage}`,
+    ...items.map((i) => `${i.title} (${i.tier}, ${formatPrice(i.price)})`),
+    '',
+    `Download your files: ${orderPage}`,
+    'Your downloads stay available for 30 days.',
     '',
     'Your license agreement for each beat is attached to this email.',
     'Questions? Just reply to this email.',
