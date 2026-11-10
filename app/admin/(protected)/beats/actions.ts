@@ -29,7 +29,10 @@ function slugify(input: string) {
     .slice(0, 80) || 'beat';
 }
 
-async function uniqueSlug(db: AdminDb, base: string, excludeId?: string) {
+const RESERVED_SLUGS = new Set(['admin', 'api', 'cart', 'download', 'licenses', 'media', 'order', 'sitemap']);
+
+async function uniqueSlug(db: AdminDb, rawBase: string, excludeId?: string) {
+  const base = RESERVED_SLUGS.has(rawBase) ? `${rawBase}-beat` : rawBase;
   let candidate = base;
   for (let i = 2; i < 100; i++) {
     let query = db.from('beats').select('id').eq('slug', candidate);

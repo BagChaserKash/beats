@@ -29,6 +29,7 @@ export type StoreBeat = {
   hasArtwork: boolean;
   waveform: number[] | null;
   priceFrom: number | null;
+  salesMode: 'public' | 'verified' | 'approval';
   licenses: StoreLicense[];
 };
 
@@ -55,6 +56,7 @@ type BeatRow = {
   produced_on: string | null;
   created_at: string;
   waveform: number[] | null;
+  sales_mode: 'public' | 'verified' | 'approval';
   beat_files: { kind: string }[] | null;
   beat_tags: { tags: { name: string } | { name: string }[] | null }[] | null;
   beat_licenses:
@@ -68,7 +70,7 @@ type BeatRow = {
 };
 
 const BEAT_SELECT = `
-  id, slug, title, bpm, musical_key, genre, mood, duration_seconds, produced_on, created_at, waveform,
+  id, slug, title, bpm, musical_key, genre, mood, duration_seconds, produced_on, created_at, waveform, sales_mode,
   beat_files ( kind ),
   beat_tags ( tags ( name ) ),
   beat_licenses ( tier_id, available, price_cents_override, price_visible_override )
@@ -127,6 +129,7 @@ function toStoreBeat(row: BeatRow, tiers: TierRow[]): StoreBeat | null {
     hasArtwork: kinds.has('artwork'),
     waveform: Array.isArray(row.waveform) ? row.waveform : null,
     priceFrom: visiblePrices.length ? Math.min(...visiblePrices) : null,
+    salesMode: row.sales_mode ?? 'public',
     licenses,
   };
 }

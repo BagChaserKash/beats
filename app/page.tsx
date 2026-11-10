@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { getCatalog, mediaUrl, formatPrice, type StoreBeat } from '@/lib/store';
 import { formatDuration } from '@/lib/beats';
 import BeatList, { type ListBeat } from './BeatList';
+import { CartLink } from '@/lib/cart';
 import styles from './store.module.css';
 
 export const dynamic = 'force-dynamic';
@@ -109,7 +110,10 @@ export default async function StorePage({ searchParams }: { searchParams: Promis
         <a href="https://bagchaserkash.com" className={styles.brand}>
           BAGCHASER<span className={styles.gold}>KASH</span>
         </a>
-        <span className={styles.headerTag}>Beats</span>
+        <div className={styles.headerLinks}>
+          <Link href="/licenses" className={styles.headerTag}>Licenses</Link>
+          <CartLink />
+        </div>
       </header>
 
       <section className={styles.hero}>

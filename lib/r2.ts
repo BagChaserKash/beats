@@ -43,8 +43,14 @@ export async function signedPutUrl(bucket: string, key: string, contentType: str
   return getSignedUrl(r2() as any, command as any, { expiresIn: 3600 });
 }
 
-export async function signedGetUrl(bucket: string, key: string, expiresIn = 600) {
-  const command = new GetObjectCommand({ Bucket: bucket, Key: key });
+export async function signedGetUrl(bucket: string, key: string, expiresIn = 600, downloadName?: string) {
+  const command = new GetObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    ResponseContentDisposition: downloadName
+      ? `attachment; filename="${downloadName.replace(/["\\\r\n]/g, '')}"`
+      : undefined,
+  });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return getSignedUrl(r2() as any, command as any, { expiresIn });
 }

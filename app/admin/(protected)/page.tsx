@@ -23,7 +23,7 @@ type Tier = {
 export default async function AdminHomePage() {
   const db = createAdminClient();
 
-  const [beats, sales, offers, tiers] = await Promise.all([
+  const [beats, sales, offers, tiers, paid] = await Promise.all([
     db.from('beats').select('id', { count: 'exact', head: true }),
     db.from('orders').select('id', { count: 'exact', head: true }).in('status', ['paid', 'fulfilled']),
     db.from('purchase_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
@@ -31,7 +31,9 @@ export default async function AdminHomePage() {
       .from('license_tiers')
       .select('name, default_price_cents, price_visible, floor_price_cents')
       .order('sort_order'),
+    db.from('orders').select('total_cents').in('status', ['paid', 'fulfilled']),
   ]);
+  const revenue = ((paid.data ?? []) as { total_cents: number }[]).reduce((s, o) => s + o.total_cents, 0);
 
   if (tiers.error) {
     return (
@@ -66,6 +68,10 @@ export default async function AdminHomePage() {
         <div className={styles.stat}>
           <div className={styles.statValue}>{sales.count ?? 0}</div>
           <div className={styles.statLabel}>Sales</div>
+        </div>
+        <div className={styles.stat}>
+          <div className={styles.statValue}>{money(revenue)}</div>
+          <div className={styles.statLabel}>Revenue</div>
         </div>
         <div className={styles.stat}>
           <div className={styles.statValue}>{offers.count ?? 0}</div>

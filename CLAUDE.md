@@ -243,3 +243,23 @@ confirm before any destructive action or any change outside this repo.
   localStorage. `lib/store.ts` is the only catalog reader and never selects hidden
   prices or floor prices.
 - NEXT: cart + Stripe Checkout (test mode, card + crypto) + webhook + delivery.
+- Phase 2d: cart (localStorage, one license per beat) → `startCheckout` server action
+  re-validates every line against the live catalog, upserts customer (blocked check),
+  creates pending order + order_items with frozen agreement snapshot (latest published
+  template version, rendered with buyer name/email/beat/order/date/price), then Stripe
+  Checkout (card + crypto from settings, falls back to card if crypto rejected,
+  promotion codes allowed, Stripe Tax OFF for now). Webhook at
+  `/beats/api/stripe/webhook` (needs `STRIPE_WEBHOOK_SECRET`): signature verified,
+  event id recorded first (dup = 200), atomic pending→paid claim, entitlements +
+  hashed single-purpose download tokens (72h, 5 uses), buyer email with links and
+  full agreement text, admin notification; rollback + retry on failure. Refund →
+  revoke (full); dispute → revoke + alert; expired → canceled. Order page
+  `/beats/order/[id]?session_id=` (30-day re-downloads). `/beats/licenses` shows
+  templates. Admin Orders page + revenue on dashboard.
+- License templates v1 (migration 0003) are DRAFTS for attorney review. Licensor
+  named as Pinnacle Forge Solutions LLC d/b/a BAGCHASERKASH.
+- Env: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `RESEND_API_KEY`,
+  `ADMIN_NOTIFY_EMAIL`, optional `EMAIL_FROM` (default onboarding@resend.dev until
+  domain verified), optional `SITE_URL`.
+- NEXT: Resend domain verification, Stripe live activation, attorney review,
+  Phase 3 (exclusive offers + verified artists).

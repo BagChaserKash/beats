@@ -5,6 +5,8 @@ import { getBeatBySlug, getCatalog, mediaUrl, formatPrice, type StoreBeat } from
 import { formatDuration } from '@/lib/beats';
 import type { Track } from '@/lib/player';
 import BeatPlayer from './BeatPlayer';
+import AddToCart from './AddToCart';
+import { CartLink } from '@/lib/cart';
 import styles from '../store.module.css';
 
 export const dynamic = 'force-dynamic';
@@ -101,7 +103,10 @@ export default async function BeatPage({ params }: { params: Promise<{ slug: str
         <a href="https://bagchaserkash.com" className={styles.brand}>
           BAGCHASER<span className={styles.gold}>KASH</span>
         </a>
-        <Link href="/" className={styles.headerTag}>← All beats</Link>
+        <div className={styles.headerLinks}>
+          <Link href="/" className={styles.headerTag}>← All beats</Link>
+          <CartLink />
+        </div>
       </header>
 
       <section className={styles.beatHero}>
@@ -154,14 +159,22 @@ export default async function BeatPage({ params }: { params: Promise<{ slug: str
                 ))}
                 <li>{l.isExclusive ? 'Exclusive rights, by agreement' : 'Non-exclusive license'}</li>
               </ul>
-              <button type="button" className={styles.licenseButton} disabled>
-                {l.isExclusive ? 'Offers open soon' : 'Checkout opens soon'}
-              </button>
+              {l.isExclusive ? (
+                <button type="button" className={styles.licenseButton} disabled>
+                  Offers open soon
+                </button>
+              ) : beat.salesMode !== 'public' ? (
+                <button type="button" className={styles.licenseButton} disabled>
+                  Approval required, opening soon
+                </button>
+              ) : (
+                <AddToCart beatId={beat.id} tierId={l.tierId} />
+              )}
             </div>
           ))}
         </div>
         <p className={styles.note}>
-          Full license terms will be shown before checkout. Previews include a producer tag; licensed files are untagged.
+          Read the full <Link href="/licenses">license terms</Link>. Previews include a producer tag; licensed files are untagged and delivered instantly after payment.
         </p>
       </section>
 
