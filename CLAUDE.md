@@ -213,3 +213,15 @@ confirm before any destructive action or any change outside this repo.
 - Open legal question for the attorney: licensor is likely Pinnacle Forge
   Solutions LLC; confirm who owns the beat copyrights (owner personally vs LLC)
   and name the licensor accordingly in agreements.
+- Supabase URL env var in Vercel still has `/rest/v1/` appended; `lib/supabase/url.ts`
+  normalizes it to the origin everywhere. Login page shows Supabase's real error.
+- R2 env vars set: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`,
+  `R2_MASTERS_BUCKET`, `R2_PREVIEWS_BUCKET`. CORS on both buckets allows PUT/GET/HEAD
+  from bagchaserkash.com and beats-kohl.vercel.app.
+- Phase 2b (part 1): admin beats list, new beat, beat editor (details, tags,
+  per-beat license availability and price overrides, publish/unpublish), direct
+  browser-to-R2 uploads via presigned PUT (artwork → previews bucket; MP3/WAV/ZIP →
+  masters bucket), duration read from audio in the browser. All admin server
+  actions call `requireAdmin()` (signed in + aal2 + admin_users).
+- NEXT: tagged preview generation (FFmpeg) with producer tag upload in settings,
+  then the public storefront and player.

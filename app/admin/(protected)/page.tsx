@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { createAdminClient } from '@/lib/supabase/admin';
 import styles from '../admin.module.css';
 
@@ -49,8 +50,13 @@ export default async function AdminHomePage() {
 
   return (
     <main className={styles.main}>
-      <h1 className={styles.h1}>Dashboard</h1>
-      <p className={styles.subtle}>Your store at a glance.</p>
+      <div className={styles.headerRow}>
+        <div>
+          <h1 className={styles.h1}>Dashboard</h1>
+          <p className={styles.subtle}>Your store at a glance.</p>
+        </div>
+        <Link href="/admin/beats/new" className={styles.primaryLink}>+ Upload a beat</Link>
+      </div>
 
       <section className={styles.stats} aria-label="Store totals">
         <div className={styles.stat}>

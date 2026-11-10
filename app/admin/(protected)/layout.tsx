@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -44,7 +45,13 @@ export default async function ProtectedAdminLayout({
   return (
     <div className={styles.shell}>
       <header className={styles.topbar}>
-        <span className={styles.topbarMark}>BAGCHASERKASH Admin</span>
+        <div className={styles.topbarLeft}>
+          <span className={styles.topbarMark}>BAGCHASERKASH Admin</span>
+          <nav className={styles.nav} aria-label="Admin">
+            <Link href="/admin">Dashboard</Link>
+            <Link href="/admin/beats">Beats</Link>
+          </nav>
+        </div>
         <SignOutButton />
       </header>
       {children}
