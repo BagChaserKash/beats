@@ -1,5 +1,13 @@
 // SERVER ONLY. Sends email through Resend's API.
-export async function sendEmail(input: { to: string; subject: string; html: string; text: string }) {
+export type EmailAttachment = { filename: string; content: string }; // content = base64
+
+export async function sendEmail(input: {
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+  attachments?: EmailAttachment[];
+}) {
   const key = process.env.RESEND_API_KEY;
   if (!key) throw new Error('RESEND_API_KEY is not set.');
   const from = (process.env.EMAIL_FROM ?? 'BAGCHASERKASH Beats <onboarding@resend.dev>').trim();
@@ -16,6 +24,7 @@ export async function sendEmail(input: { to: string; subject: string; html: stri
       html: input.html,
       text: input.text,
       ...(replyTo ? { reply_to: replyTo } : {}),
+      ...(input.attachments?.length ? { attachments: input.attachments } : {}),
     }),
   });
   if (!res.ok) throw new Error(`Email failed (${res.status}): ${await res.text()}`);

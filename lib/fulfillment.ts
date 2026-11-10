@@ -122,6 +122,12 @@ export async function fulfillOrder(input: {
       subject: `Your BAGCHASERKASH beats: order ${order.order_number}`,
       html: buyerHtml(order.order_number, order.total_cents, emailItems, orderPage, hours),
       text: buyerText(order.order_number, order.total_cents, emailItems, orderPage, hours),
+      attachments: emailItems
+        .filter((i) => i.agreement)
+        .map((i) => ({
+          filename: `License - ${i.title.replace(/[^a-zA-Z0-9 ._()-]+/g, '').trim() || 'Beat'} - ${i.tier} - ${order.order_number}.txt`,
+          content: Buffer.from(i.agreement, 'utf8').toString('base64'),
+        })),
     });
     await db.from('orders').update({ status: 'fulfilled' }).eq('id', order.id).eq('status', 'paid');
   } catch (err) {
@@ -196,70 +202,48 @@ export async function markCanceled(orderId: string) {
 }
 
 // ---------- email bodies ----------
+// Kept short and simple: strict inboxes (like iCloud) reject long, link-heavy
+// emails from new domains. Full agreements go out as attachments.
 
-function buyerHtml(
-  orderNumber: string,
-  total: number,
-  items: { title: string; tier: string; price: number; links: { label: string; url: string }[]; agreement: string }[],
-  orderPage: string,
-  hours: number
-) {
+type EmailItem = { title: string; tier: string; price: number; links: { label: string; url: string }[]; agreement: string };
+
+function buyerHtml(orderNumber: string, total: number, items: EmailItem[], orderPage: string, hours: number) {
   const rows = items
     .map(
       (i) => `
-      <tr><td style="padding:16px 0;border-top:1px solid #333">
-        <div style="font-size:18px;font-weight:700">${escapeHtml(i.title)}</div>
-        <div style="color:#999;margin:2px 0 10px">${escapeHtml(i.tier)} · ${formatPrice(i.price)}</div>
-        ${i.links
-          .map(
-            (l) =>
-              `<a href="${l.url}" style="display:inline-block;background:#c9a54c;color:#000;text-decoration:none;font-weight:700;padding:10px 14px;border-radius:6px;margin:0 8px 8px 0">Download ${escapeHtml(l.label)}</a>`
-          )
-          .join('')}
-      </td></tr>`
+      <p style="margin:18px 0 6px"><strong>${escapeHtml(i.title)}</strong><br>
+      <span style="color:#555">${escapeHtml(i.tier)}, ${formatPrice(i.price)}</span></p>
+      <p style="margin:0">${i.links
+        .map((l) => `<a href="${l.url}" style="color:#8a6d1f;font-weight:bold">Download ${escapeHtml(l.label)}</a>`)
+        .join('<br>')}</p>`
     )
     .join('');
 
-  const agreements = items
-    .map(
-      (i) =>
-        `<h3 style="margin:28px 0 8px">${escapeHtml(i.title)}: ${escapeHtml(i.tier)}</h3><pre style="white-space:pre-wrap;font-family:Menlo,Consolas,monospace;font-size:12px;line-height:1.5;background:#111;color:#ddd;padding:14px;border-radius:6px">${escapeHtml(i.agreement)}</pre>`
-    )
-    .join('');
-
-  return `<!doctype html><html><body style="margin:0;background:#000;color:#f5f5f2;font-family:Helvetica,Arial,sans-serif">
-  <div style="max-width:620px;margin:0 auto;padding:28px 20px">
-    <div style="font-size:24px;font-weight:800">BAGCHASER<span style="color:#c9a54c">KASH</span></div>
-    <h1 style="font-size:22px;margin:24px 0 6px">Thanks for your order.</h1>
-    <p style="color:#bbb;margin:0 0 6px">Order ${escapeHtml(orderNumber)} · Total ${formatPrice(total)}</p>
-    <p style="color:#bbb;margin:0 0 18px">Your download links work for ${hours} hours. After that, use your <a href="${orderPage}" style="color:#c9a54c">order page</a> to download again.</p>
-    <table style="width:100%;border-collapse:collapse">${rows}</table>
-    <h2 style="font-size:18px;margin:32px 0 0">Your license agreements</h2>
-    <p style="color:#999;font-size:13px">Keep this email. It's your record of the license you agreed to at checkout.</p>
-    ${agreements}
-    <p style="color:#777;font-size:12px;margin-top:32px">Questions? Reply to this email.</p>
+  return `<!doctype html><html><body style="margin:0;padding:24px;background:#ffffff;color:#111;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.5">
+  <div style="max-width:560px;margin:0 auto">
+    <p style="font-size:20px;font-weight:bold;margin:0 0 16px">BAGCHASERKASH</p>
+    <p style="margin:0 0 4px">Thanks for your order.</p>
+    <p style="margin:0;color:#555">Order ${escapeHtml(orderNumber)}. Total ${formatPrice(total)}.</p>
+    ${rows}
+    <p style="margin:22px 0 0">Download links work for ${hours} hours. You can also download again from your <a href="${orderPage}" style="color:#8a6d1f">order page</a> for 30 days.</p>
+    <p style="margin:12px 0 0">Your license agreement for each beat is attached to this email. Please keep it for your records.</p>
+    <p style="margin:22px 0 0;color:#777;font-size:13px">Questions? Just reply to this email.</p>
   </div></body></html>`;
 }
 
-function buyerText(
-  orderNumber: string,
-  total: number,
-  items: { title: string; tier: string; price: number; links: { label: string; url: string }[]; agreement: string }[],
-  orderPage: string,
-  hours: number
-) {
+function buyerText(orderNumber: string, total: number, items: EmailItem[], orderPage: string, hours: number) {
   return [
-    `Thanks for your order from BAGCHASERKASH.`,
-    `Order ${orderNumber} · Total ${formatPrice(total)}`,
-    `Download links work for ${hours} hours. After that, use your order page: ${orderPage}`,
+    'Thanks for your order from BAGCHASERKASH.',
+    `Order ${orderNumber}. Total ${formatPrice(total)}.`,
     '',
     ...items.flatMap((i) => [
       `${i.title} (${i.tier}, ${formatPrice(i.price)})`,
-      ...i.links.map((l) => `  ${l.label}: ${l.url}`),
+      ...i.links.map((l) => `  Download ${l.label}: ${l.url}`),
       '',
     ]),
-    'YOUR LICENSE AGREEMENTS',
+    `Download links work for ${hours} hours. Order page (re-downloads for 30 days): ${orderPage}`,
     '',
-    ...items.flatMap((i) => [`--- ${i.title}: ${i.tier} ---`, i.agreement, '']),
+    'Your license agreement for each beat is attached to this email.',
+    'Questions? Just reply to this email.',
   ].join('\n');
 }
