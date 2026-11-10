@@ -192,3 +192,24 @@ Develop in test mode with the Stripe CLI (`stripe listen`).
 The owner is not a daily terminal user. Explain each step in plain language,
 say what the owner must do in a dashboard versus what you do in code, and
 confirm before any destructive action or any change outside this repo.
+
+## Progress log
+
+- Phase 1 complete. Store project `beats` on Vercel, public domain
+  `beats-kohl.vercel.app`, routed from bagchaserkash.com/beats via rewrites in
+  the main site's `vercel.json`. Live coming-soon page.
+- Accounts created: Supabase (project `beats`, East US), Cloudflare R2 (buckets
+  `bagchaserkash-masters` private, `bagchaserkash-previews`), Stripe (sandbox;
+  live activation and Crypto request pending, under Pinnacle Forge Solutions LLC,
+  DBA/statement descriptor BAGCHASERKASH), Resend (no domain yet).
+- Vercel env vars set: `NEXT_PUBLIC_SUPABASE_URL`,
+  `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (Config), `SUPABASE_SECRET_KEY`
+  (Sensitive).
+- Phase 2a (in progress): `supabase/migrations/0001_init.sql` (full schema, RLS
+  on everywhere with no public policies, seeded tiers and settings); admin login
+  at `/beats/admin/login` with mandatory TOTP MFA; `admin_users` allowlist;
+  dashboard shell. Next.js 16 `proxy.ts` refreshes admin sessions.
+- Owner workflow: code is delivered as zips and committed via GitHub Desktop.
+- Open legal question for the attorney: licensor is likely Pinnacle Forge
+  Solutions LLC; confirm who owns the beat copyrights (owner personally vs LLC)
+  and name the licensor accordingly in agreements.

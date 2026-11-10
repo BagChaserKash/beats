@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { supabaseUrl } from './url';
 
 // SERVER ONLY. Full database access using the secret key.
 // Never import this from a file marked 'use client'.
@@ -7,7 +8,7 @@ export function createAdminClient() {
   if (!key) {
     throw new Error('SUPABASE_SECRET_KEY is not set in Vercel environment variables.');
   }
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key, {
+  return createClient(supabaseUrl(), key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }

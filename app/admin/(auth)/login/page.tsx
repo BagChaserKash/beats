@@ -23,7 +23,7 @@ export default function AdminLoginPage() {
     });
 
     if (signInError) {
-      setError('That email and password don’t match an admin account.');
+      setError(signInError.message);
       setBusy(false);
       return;
     }
