@@ -458,3 +458,11 @@
   color: var(--white);
   mix-blend-mode: difference;
 }
+
+.audio {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+  margin-top: 10px;
+  height: 36px;
+}

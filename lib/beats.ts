@@ -5,10 +5,10 @@ export const MUSICAL_KEYS = [
   'A major', 'A minor', 'Bb major', 'Bb minor', 'B major', 'B minor',
 ];
 
-export type FileKind = 'artwork' | 'master_mp3' | 'master_wav' | 'trackout_zip';
+export type FileKind = 'artwork' | 'master_mp3' | 'master_wav' | 'trackout_zip' | 'preview_mp3';
 
 export const FILE_SLOTS: {
-  kind: FileKind;
+  kind: Exclude<FileKind, 'preview_mp3'>;
   label: string;
   hint: string;
   accept: string;

@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { requireAdmin, type AdminDb } from '@/lib/auth';
-import { mastersBucket, previewsBucket, signedPutUrl, deleteObject } from '@/lib/r2';
+import { mastersBucket, previewsBucket, signedPutUrl, signedGetUrl, deleteObject } from '@/lib/r2';
 import { MUSICAL_KEYS, type FileKind } from '@/lib/beats';
 
 // ---------- helpers ----------
@@ -173,6 +173,14 @@ export async function setBeatStatus(formData: FormData) {
       .eq('beat_id', id)
       .in('kind', ['master_mp3', 'master_wav']);
     if (!files || files.length === 0) redirect(`/admin/beats/${id}?error=needs-audio`);
+
+    const { data: preview } = await db
+      .from('beat_files')
+      .select('kind')
+      .eq('beat_id', id)
+      .eq('kind', 'preview_mp3')
+      .maybeSingle();
+    if (!preview) redirect(`/admin/beats/${id}?error=needs-preview`);
   }
 
   const { data: current } = await db.from('beats').select('status').eq('id', id).single();
@@ -191,6 +199,7 @@ const LIMITS: Record<FileKind, number> = {
   master_mp3: 60 * 1024 * 1024,
   master_wav: 600 * 1024 * 1024,
   trackout_zip: 5 * 1000 * 1024 * 1024,
+  preview_mp3: 40 * 1024 * 1024,
 };
 
 function contentTypeFor(kind: FileKind, fileName: string): string | null {
@@ -204,11 +213,12 @@ function contentTypeFor(kind: FileKind, fileName: string): string | null {
   if (kind === 'master_mp3') return ext === 'mp3' ? 'audio/mpeg' : null;
   if (kind === 'master_wav') return ext === 'wav' ? 'audio/wav' : null;
   if (kind === 'trackout_zip') return ext === 'zip' ? 'application/zip' : null;
+  if (kind === 'preview_mp3') return ext === 'mp3' ? 'audio/mpeg' : null;
   return null;
 }
 
 function bucketFor(kind: FileKind) {
-  return kind === 'artwork' ? previewsBucket() : mastersBucket();
+  return kind === 'artwork' || kind === 'preview_mp3' ? previewsBucket() : mastersBucket();
 }
 
 export async function getUploadUrl(
@@ -261,5 +271,61 @@ export async function recordUpload(
   }
 
   await log(db, user.id, 'beat.upload', beatId, { kind, size });
+  revalidatePath('/admin', 'layout');
+}
+
+// ---------- tagged previews ----------
+
+type PreviewOptions = { interval_seconds: number; tag_gain: number; first_tag_at: number };
+
+const DEFAULT_PREVIEW_OPTIONS: PreviewOptions = {
+  interval_seconds: 30,
+  tag_gain: 1,
+  first_tag_at: 2,
+};
+
+export async function getPreviewSources(beatId: string): Promise<
+  | { sourceUrl: string; tagUrl: string; options: PreviewOptions }
+  | { error: string }
+> {
+  const { db } = await requireAdmin();
+
+  const { data: files } = await db
+    .from('beat_files')
+    .select('kind, bucket, object_key')
+    .eq('beat_id', beatId)
+    .in('kind', ['master_mp3', 'master_wav']);
+  const list = (files ?? []) as { kind: string; bucket: string; object_key: string }[];
+  // The MP3 downloads faster; fall back to the WAV.
+  const source = list.find((f) => f.kind === 'master_mp3') ?? list.find((f) => f.kind === 'master_wav');
+  if (!source) return { error: 'Upload the untagged MP3 or WAV first.' };
+
+  const { data: settings } = await db
+    .from('settings')
+    .select('key, value')
+    .in('key', ['producer_tag', 'preview_options']);
+  const byKey = new Map(
+    ((settings ?? []) as { key: string; value: unknown }[]).map((r) => [r.key, r.value])
+  );
+  const tag = byKey.get('producer_tag') as { bucket: string; key: string } | undefined;
+  if (!tag) return { error: 'Upload your producer tag in Settings first.' };
+
+  const options = {
+    ...DEFAULT_PREVIEW_OPTIONS,
+    ...((byKey.get('preview_options') as Partial<PreviewOptions> | undefined) ?? {}),
+  };
+
+  const [sourceUrl, tagUrl] = await Promise.all([
+    signedGetUrl(source.bucket, source.object_key, 900),
+    signedGetUrl(tag.bucket, tag.key, 900),
+  ]);
+  return { sourceUrl, tagUrl, options };
+}
+
+export async function saveWaveform(beatId: string, peaks: number[]) {
+  const { db } = await requireAdmin();
+  if (!Array.isArray(peaks) || peaks.length > 1000) throw new Error('Bad waveform data.');
+  const clean = peaks.map((p) => (Number.isFinite(p) ? Math.min(1, Math.max(0, p)) : 0));
+  await db.from('beats').update({ waveform: clean }).eq('id', beatId);
   revalidatePath('/admin', 'layout');
 }

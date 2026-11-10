@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getUploadUrl, recordUpload } from '../actions';
 import { formatBytes, type FileKind } from '@/lib/beats';
+import { putFile } from '@/lib/upload';
 import styles from '../../../admin.module.css';
 
 type Props = {
@@ -32,24 +33,6 @@ function readDuration(file: File): Promise<number | null> {
   });
 }
 
-function putFile(url: string, file: File, contentType: string, onProgress: (pct: number) => void) {
-  return new Promise<void>((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('PUT', url);
-    xhr.setRequestHeader('Content-Type', contentType);
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
-    };
-    xhr.onload = () =>
-      xhr.status >= 200 && xhr.status < 300
-        ? resolve()
-        : reject(new Error(`Upload failed (code ${xhr.status}).`));
-    xhr.onerror = () =>
-      reject(new Error('Upload failed. Check your connection and the bucket’s CORS policy.'));
-    xhr.send(file);
-  });
-}
-
 export default function FileSlot(props: Props) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -70,6 +53,10 @@ export default function FileSlot(props: Props) {
       await recordUpload(props.beatId, props.kind, ticket.key, file.size, duration);
       setProgress(null);
       router.refresh();
+      if (props.kind === 'master_mp3' || props.kind === 'master_wav') {
+        // Tell the preview maker to build a fresh tagged preview.
+        window.dispatchEvent(new CustomEvent('master-uploaded', { detail: props.beatId }));
+      }
     } catch (err) {
       setProgress(null);
       setError(err instanceof Error ? err.message : 'Upload failed.');

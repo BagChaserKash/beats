@@ -225,3 +225,10 @@ confirm before any destructive action or any change outside this repo.
   actions call `requireAdmin()` (signed in + aal2 + admin_users).
 - NEXT: tagged preview generation (FFmpeg) with producer tag upload in settings,
   then the public storefront and player.
+- Phase 2b (part 2): tagged previews are made IN THE ADMIN'S BROWSER (Web Audio
+  OfflineAudioContext mix + limiter, MP3 encode with @breezystack/lamejs at
+  128 kbps), uploaded to the previews bucket as `preview_mp3`, waveform peaks (200)
+  saved to `beats.waveform` (migration 0002). Runs automatically after a master
+  upload; "Remake" button on the beat page. Producer tag and preview options live
+  in `settings` (`producer_tag`, `preview_options`) via /admin/settings. Publishing
+  now requires a preview.

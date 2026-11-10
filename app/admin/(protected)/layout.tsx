@@ -50,6 +50,7 @@ export default async function ProtectedAdminLayout({
           <nav className={styles.nav} aria-label="Admin">
             <Link href="/admin">Dashboard</Link>
             <Link href="/admin/beats">Beats</Link>
+            <Link href="/admin/settings">Settings</Link>
           </nav>
         </div>
         <SignOutButton />
